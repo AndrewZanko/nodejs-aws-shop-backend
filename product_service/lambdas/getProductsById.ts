@@ -1,8 +1,10 @@
-import { APIGatewayProxyHandler } from "aws-lambda";
+import { APIGatewayProxyEvent, APIGatewayProxyResult } from "aws-lambda";
 import { mockProducts } from "./mocks";
 import { commonHeaders } from "./headers";
 
-export const handler: APIGatewayProxyHandler = async (event) => {
+export const handler = async (
+  event: APIGatewayProxyEvent
+): Promise<APIGatewayProxyResult> => {
   const productId = event.pathParameters?.productId;
 
   if (!productId) {
