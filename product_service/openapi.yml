@@ -1,0 +1,76 @@
+openapi: 3.0.3
+info:
+  title: Product Service API
+  description: API for retrieving product information
+  version: 1.0.0
+
+servers:
+  - url: https://l5qklq47wi.execute-api.eu-west-1.amazonaws.com/prod
+    description: Production server
+
+paths:
+  /products:
+    get:
+      summary: Get all products
+      operationId: getAllProducts
+      responses:
+        "200":
+          description: List of products
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Product"
+
+  /products/{productId}:
+    get:
+      summary: Get a product by ID
+      operationId: getProductById
+      parameters:
+        - name: productId
+          in: path
+          required: true
+          description: ID of the product to retrieve
+          schema:
+            type: integer
+            example: 1
+      responses:
+        "200":
+          description: Product found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Product"
+        "404":
+          description: Product not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+components:
+  schemas:
+    Product:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        title:
+          type: string
+          example: "Gaming Laptop"
+        description:
+          type: string
+          nullable: true
+          example: "High-performance laptop for gaming and work"
+        price:
+          type: number
+          example: 1299.99
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+          example: "Product with id 4 not found!"
