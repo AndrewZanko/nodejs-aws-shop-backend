@@ -43,7 +43,7 @@ const products = [
 // Mock stocks data (each stock references a product's `id`)
 const stocks = products.map((product) => ({
   product_id: product.id,
-  stock: Math.floor(Math.random() * 100) + 1,
+  count: Math.floor(Math.random() * 100) + 1,
 }));
 
 async function clearTable(tableName: string, keyName: string) {
@@ -95,7 +95,7 @@ async function seedData() {
       await docClient.send(
         new PutCommand({ TableName: stocksTable, Item: stock })
       );
-      console.log(`Inserted stock: ${stock.product_id} - ${stock.stock}`);
+      console.log(`Inserted stock: ${stock.product_id} - ${stock.count}`);
     }
 
     console.log("Seeding completed successfully!");
