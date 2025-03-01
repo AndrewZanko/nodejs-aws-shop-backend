@@ -22,6 +22,38 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/Product"
+    post:
+      summary: Create a new product
+      operationId: createProduct
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - title
+                - price
+                - count
+              properties:
+                title:
+                  type: string
+                price:
+                  type: number
+                description:
+                  type: string
+                  nullable: true
+                count:
+                  type: number
+      responses:
+        "201":
+          description: Product created successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CountedProduct"
+        "400":
+          description: Invalid body
 
   /products/{productId}:
     get:
@@ -67,6 +99,27 @@ components:
         price:
           type: number
           example: 1299.99
+          
+    CountedProduct:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        title:
+          type: string
+          example: "Gaming Laptop"
+        description:
+          type: string
+          nullable: true
+          example: "High-performance laptop for gaming and work"
+        price:
+          type: number
+          example: 1299.99
+        count:
+          type: number
+          example: 15
+    
 
     Error:
       type: object
