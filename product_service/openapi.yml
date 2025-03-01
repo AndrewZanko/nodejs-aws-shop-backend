@@ -65,8 +65,8 @@ paths:
           required: true
           description: ID of the product to retrieve
           schema:
-            type: integer
-            example: 1
+            type: string
+            example: 3470bbe4-473a-420e-b20e-ceaccde468fb
       responses:
         "200":
           description: Product found
@@ -87,8 +87,8 @@ components:
       type: object
       properties:
         id:
-          type: integer
-          example: 1
+          type: string
+          example: "3470bbe4-473a-420e-b20e-ceaccde468fb"
         title:
           type: string
           example: "Gaming Laptop"
@@ -104,8 +104,8 @@ components:
       type: object
       properties:
         id:
-          type: integer
-          example: 1
+          type: string
+          example: "3470bbe4-473a-420e-b20e-ceaccde468fb"
         title:
           type: string
           example: "Gaming Laptop"

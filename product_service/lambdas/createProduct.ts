@@ -1,11 +1,14 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from "aws-lambda";
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
-import { PutCommand, DynamoDBDocumentClient } from "@aws-sdk/lib-dynamodb";
+import {
+  DynamoDBDocumentClient,
+  TransactWriteCommand,
+} from "@aws-sdk/lib-dynamodb";
 import { randomUUID } from "crypto";
 import { commonHeaders } from "./headers";
 
 const client = new DynamoDBClient({});
-const dynamoDb = DynamoDBDocumentClient.from(client);
+const docClient = DynamoDBDocumentClient.from(client);
 
 const PRODUCTS_TABLE = process.env.PRODUCTS_TABLE!;
 const STOCKS_TABLE = process.env.STOCKS_TABLE!;
@@ -54,23 +57,37 @@ export const handler = async (
     const productId = randomUUID();
     const { title, price, description = "", count } = body;
 
-    const productParams = new PutCommand({
-      TableName: PRODUCTS_TABLE,
-      Item: { id: productId, title, description, price },
+    const transactionParams = new TransactWriteCommand({
+      TransactItems: [
+        {
+          Put: {
+            TableName: PRODUCTS_TABLE,
+            Item: {
+              id: productId,
+              title,
+              description: description || "",
+              price,
+            },
+            ConditionExpression: "attribute_not_exists(id)", // Cancels transaction in case of duplicated id
+          },
+        },
+        {
+          Put: {
+            TableName: STOCKS_TABLE,
+            Item: { product_id: productId, count },
+            ConditionExpression: "attribute_not_exists(product_id)", // Cancels transaction in case of duplicated id
+          },
+        },
+      ],
     });
 
-    console.log("Storing product:", productParams);
-    await dynamoDb.send(productParams);
-
-    const stockParams = new PutCommand({
-      TableName: STOCKS_TABLE,
-      Item: { product_id: productId, count },
-    });
-
-    console.log("Storing stock:", stockParams);
-    await dynamoDb.send(stockParams);
+    console.log(`Executing transaction: ${transactionParams}`);
+    await docClient.send(transactionParams);
+    console.log("Transaction finished succesfully");
 
     const createdProduct = { id: productId, title, description, price, count };
+    console.log(`New counted product ${createdProduct}`);
+
     return {
       statusCode: 201,
       headers: commonHeaders,
