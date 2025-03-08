@@ -1,4 +1,4 @@
-import { S3Event, S3Handler } from "aws-lambda";
+import { S3Event } from "aws-lambda";
 import {
   S3Client,
   GetObjectCommand,
@@ -12,7 +12,7 @@ const s3Client = new S3Client({});
 const BUCKET_NAME = process.env.BUCKET_NAME!;
 const UPLOAD_FOLDER = "uploaded/";
 
-export const handler: S3Handler = async (event: S3Event) => {
+export const handler = async (event: S3Event): Promise<any> => {
   console.log("Received event:", event);
 
   for (const record of event.Records) {
