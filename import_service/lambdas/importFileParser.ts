@@ -1,9 +1,14 @@
 import { S3Event, S3Handler } from "aws-lambda";
-import { S3Client, GetObjectCommand } from "@aws-sdk/client-s3";
+import {
+  S3Client,
+  GetObjectCommand,
+  CopyObjectCommand,
+  DeleteObjectCommand,
+} from "@aws-sdk/client-s3";
 import { Readable } from "stream";
 import csv = require("csv-parser");
 
-const s3 = new S3Client({});
+const s3Client = new S3Client({});
 const BUCKET_NAME = process.env.BUCKET_NAME!;
 const UPLOAD_FOLDER = "uploaded/";
 
@@ -25,7 +30,7 @@ export const handler: S3Handler = async (event: S3Event) => {
         Key: key,
       });
 
-      const { Body } = await s3.send(getObjectCommand);
+      const { Body } = await s3Client.send(getObjectCommand);
 
       if (!Body || !(Body instanceof Readable)) {
         console.error(`Failed to retrieve readable stream for file: ${key}`);
@@ -47,8 +52,10 @@ export const handler: S3Handler = async (event: S3Event) => {
               count: Number(row.count),
             });
           })
-          .on("end", () => {
+          .on("end", async () => {
             console.log(`Finished processing file: ${key}`);
+            const newKey = key.replace('uploaded/', 'parsed/');
+            await moveFile(BUCKET_NAME, key, newKey);
             resolve();
           })
           .on("error", (error) => {
@@ -59,5 +66,35 @@ export const handler: S3Handler = async (event: S3Event) => {
     } catch (error) {
       console.error(`Error processing file ${key}:`, error);
     }
+  }
+};
+
+const moveFile = async (
+  bucket: string,
+  sourceKey: string,
+  targetKey: string
+) => {
+  try {
+    console.log(
+      `Moving file from ${sourceKey} to ${targetKey} in bucket ${bucket}`
+    );
+    await s3Client.send(
+      new CopyObjectCommand({
+        Bucket: bucket,
+        CopySource: encodeURIComponent(`${bucket}/${sourceKey}`),
+        Key: targetKey,
+      })
+    );
+    console.log(`File added to: ${targetKey}`);
+
+    await s3Client.send(
+      new DeleteObjectCommand({
+        Bucket: bucket,
+        Key: sourceKey,
+      })
+    );
+    console.log(`File removed from: ${sourceKey}`);
+  } catch (error) {
+    console.error("Error moving file, error:", error);
   }
 };

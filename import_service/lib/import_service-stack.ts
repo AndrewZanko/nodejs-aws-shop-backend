@@ -3,6 +3,7 @@ import { Construct } from 'constructs';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
 import { NodejsFunction, NodejsFunctionProps } from 'aws-cdk-lib/aws-lambda-nodejs';
 import * as apigateway from 'aws-cdk-lib/aws-apigateway';
+import * as iam from 'aws-cdk-lib/aws-iam';
 import * as s3 from 'aws-cdk-lib/aws-s3';
 import * as s3n from 'aws-cdk-lib/aws-s3-notifications';
 import * as path from 'path';
@@ -34,8 +35,8 @@ export class ImportServiceStack extends cdk.Stack {
       ...lambdaProps,
     });
 
-    bucket.grantPut(importProductsFileLambda, 'uploaded/*');
-    bucket.grantRead(importFileParserLambda, 'uploaded/*');
+    bucket.grantReadWrite(importProductsFileLambda);
+    bucket.grantReadWrite(importFileParserLambda);
 
     const api = new apigateway.RestApi(this, 'ImportApi', {
       defaultCorsPreflightOptions: {
@@ -50,6 +51,14 @@ export class ImportServiceStack extends cdk.Stack {
         'method.request.querystring.name': true,
       },
     });
+
+    importFileParserLambda.addToRolePolicy(
+      new iam.PolicyStatement({
+        effect: iam.Effect.ALLOW,
+        actions: ['s3:CopyObject', 's3:DeleteObject'],
+        resources: [`${bucket.bucketArn}/*`],
+      })
+    );
 
     // Add S3 event notification for files in the 'uploaded/' folder
     bucket.addEventNotification(
