@@ -5,6 +5,8 @@ import * as apigateway from "aws-cdk-lib/aws-apigateway";
 import * as dynamodb from "aws-cdk-lib/aws-dynamodb";
 import * as sqs from "aws-cdk-lib/aws-sqs";
 import * as lambdaEventSources from "aws-cdk-lib/aws-lambda-event-sources";
+import * as sns from "aws-cdk-lib/aws-sns";
+import * as snsSubscriptions from "aws-cdk-lib/aws-sns-subscriptions";
 import * as path from "path";
 
 export class ProductServiceStack extends cdk.Stack {
@@ -20,6 +22,27 @@ export class ProductServiceStack extends cdk.Stack {
       this,
       "StocksTable",
       "stocks"
+    );
+
+    const createProductTopic = new sns.Topic(this, "CreateProductTopic");
+
+    createProductTopic.addSubscription(
+      new snsSubscriptions.EmailSubscription('a.zanko@softteco.com', {
+        filterPolicy: {
+          count: sns.SubscriptionFilter.numericFilter({
+            greaterThan: 40,
+          }),
+        },
+      })
+    );
+    createProductTopic.addSubscription(
+      new snsSubscriptions.EmailSubscription('sem.andrej9@gmail.com', {
+        filterPolicy: {
+          count: sns.SubscriptionFilter.numericFilter({
+            lessThanOrEqualTo: 40,
+          }),
+        },
+      })
     );
 
     const catalogItemsQueue = new sqs.Queue(this, "CatalogItemsQueue", {
@@ -53,10 +76,18 @@ export class ProductServiceStack extends cdk.Stack {
       ...lambdaProps,
     });
 
-    const catalogBatchProcessLambda = new lambda.Function(this, "importProduct", {
-      handler: "catalogBatchProcess.handler",
-      ...lambdaProps,
-    });
+    const catalogBatchProcessLambda = new lambda.Function(
+      this,
+      "importProduct",
+      {
+        handler: "catalogBatchProcess.handler",
+        ...lambdaProps,
+        environment: {
+          ...lambdaProps.environment,
+          SNS_TOPIC_ARN: createProductTopic.topicArn,
+        },
+      }
+    );
 
     const api = new apigateway.RestApi(this, "ProductsApi", {
       restApiName: "Products service",
@@ -88,7 +119,10 @@ export class ProductServiceStack extends cdk.Stack {
       getProductsListLambda
     );
     products.addMethod("GET", getProductsListIntegration);
-    products.addMethod("POST", new apigateway.LambdaIntegration(createProductLambda));
+    products.addMethod(
+      "POST",
+      new apigateway.LambdaIntegration(createProductLambda)
+    );
 
     const getProductIntegration = new apigateway.LambdaIntegration(
       getProductsByIdLambda
@@ -102,6 +136,7 @@ export class ProductServiceStack extends cdk.Stack {
     );
 
     catalogItemsQueue.grantConsumeMessages(catalogBatchProcessLambda);
+    createProductTopic.grantPublish(catalogBatchProcessLambda);
 
     // Export SQS queue ARN for the Import Service
     new cdk.CfnOutput(this, "CatalogItemsQueueArn", {

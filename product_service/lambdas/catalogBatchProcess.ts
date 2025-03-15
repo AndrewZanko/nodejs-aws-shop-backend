@@ -4,12 +4,15 @@ import {
   DynamoDBDocumentClient,
   TransactWriteCommand,
 } from "@aws-sdk/lib-dynamodb";
+import { SNSClient, PublishCommand } from "@aws-sdk/client-sns";
 
 const client = new DynamoDBClient({});
 const docClient = DynamoDBDocumentClient.from(client);
+const snsClient = new SNSClient({});
 
 const PRODUCTS_TABLE = process.env.PRODUCTS_TABLE!;
 const STOCKS_TABLE = process.env.STOCKS_TABLE!;
+const SNS_TOPIC_ARN = process.env.SNS_TOPIC_ARN!;
 
 export const handler = async (event: SQSEvent): Promise<void> => {
   console.log("Received event:", JSON.stringify(event, null, 2));
@@ -50,7 +53,7 @@ export const handler = async (event: SQSEvent): Promise<void> => {
       console.log(`Executing transaction`);
       await docClient.send(transactionParams);
       console.log("Transaction finished succesfully");
-      console.log("New counted product: ", product);
+      await notifyByEmail(product);
     } catch (error) {
       console.error("Error processing SQS message: ", error);
     }
@@ -70,4 +73,29 @@ const isProductValid = (product: Record<string, any>) => {
     product.count < 0 ||
     product.price <= 0
   );
+};
+
+const notifyByEmail = async (product: Record<string, any>) => {
+  try {
+    await snsClient.send(
+      new PublishCommand({
+        TopicArn: SNS_TOPIC_ARN,
+        Subject: "Product created",
+        Message: JSON.stringify({
+          message: `Product created: ${product.title}`,
+          product,
+        }),
+        MessageAttributes: {
+          count: {
+            DataType: "Number",
+            StringValue: product.count.toString(),
+          },
+        },
+      })
+    );
+
+    console.log("SNS email notification sent successfully");
+  } catch (error) {
+    console.error("Error sending SNS email notification: ", error);
+  }
 };
