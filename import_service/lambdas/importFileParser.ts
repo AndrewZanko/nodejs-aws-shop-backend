@@ -6,11 +6,15 @@ import {
   DeleteObjectCommand,
 } from "@aws-sdk/client-s3";
 import { Readable } from "stream";
+import { SQSClient, SendMessageBatchCommand } from "@aws-sdk/client-sqs";
 import csv = require("csv-parser");
+import { randomUUID } from "crypto";
 
 const s3Client = new S3Client({});
 const BUCKET_NAME = process.env.BUCKET_NAME!;
 const UPLOAD_FOLDER = "uploaded/";
+const sqsClient = new SQSClient({});
+const QUEUE_URL = process.env.CATALOG_ITEMS_QUEUE_URL!;
 
 export const handler = async (event: S3Event): Promise<any> => {
   console.log("Received event:", event);
@@ -37,24 +41,30 @@ export const handler = async (event: S3Event): Promise<any> => {
         continue;
       }
 
+      let rowsBatch: any[] = [];
+
       await new Promise<void>((resolve, reject) => {
-        Body.pipe(
-          csv({
-            separator: ";", // Specify semicolon as delimiter
-            quote: '"', // Specify quote character
-          })
-        )
-          .on("data", (row) => {
-            console.log("Parsed record:", {
-              title: row.title,
-              description: row.description,
+        Body.pipe(csv())
+          .on("data", async (row: Record<string, any>) => {
+            const productId = randomUUID();
+            rowsBatch.push({
+              id: productId,
+              ...row,
               price: Number(row.price),
               count: Number(row.count),
             });
+
+            if (rowsBatch.length === 5) {
+              await sendBatchToSQS(rowsBatch);
+              rowsBatch = [];
+            }
           })
           .on("end", async () => {
+            if (rowsBatch.length > 0) {
+              await sendBatchToSQS(rowsBatch);
+            }
             console.log(`Finished processing file: ${key}`);
-            const newKey = key.replace('uploaded/', 'parsed/');
+            const newKey = key.replace("uploaded/", "parsed/");
             await moveFile(BUCKET_NAME, key, newKey);
             resolve();
           })
@@ -66,6 +76,24 @@ export const handler = async (event: S3Event): Promise<any> => {
     } catch (error) {
       console.error(`Error processing file ${key}:`, error);
     }
+  }
+};
+
+const sendBatchToSQS = async (records: any[]) => {
+  try {
+    const entries = records.map((record, index) => ({
+      Id: index.toString(),
+      MessageBody: JSON.stringify(record),
+    }));
+
+    await sqsClient.send(
+      new SendMessageBatchCommand({
+        QueueUrl: QUEUE_URL,
+        Entries: entries,
+      })
+    );
+  } catch (error) {
+    console.error("Error sending messages to SQS:", error);
   }
 };
 
