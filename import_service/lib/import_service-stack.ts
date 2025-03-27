@@ -58,14 +58,38 @@ export class ImportServiceStack extends cdk.Stack {
       }
     );
 
+    const basicAuthorizerLambdaArn = cdk.Fn.importValue(
+      "BasicAuthorizerLambdaArn"
+    );
+
     bucket.grantReadWrite(importProductsFileLambda);
     bucket.grantReadWrite(importFileParserLambda);
     catalogItemsQueue.grantSendMessages(importFileParserLambda);
 
+    const importedAuthorizer = new apigateway.TokenAuthorizer(
+      this,
+      "ImportedAuthorizer",
+      {
+        handler: lambda.Function.fromFunctionArn(
+          this,
+          "BasicAuthorizerFunction",
+          basicAuthorizerLambdaArn
+        ),
+        identitySource: apigateway.IdentitySource.header("Authorization"),
+      }
+    );
+
     const api = new apigateway.RestApi(this, "ImportApi", {
       defaultCorsPreflightOptions: {
         allowOrigins: apigateway.Cors.ALL_ORIGINS,
-        allowMethods: ["GET", "OPTIONS"],
+        allowMethods: apigateway.Cors.ALL_METHODS,
+        allowHeaders: [
+          "Content-Type",
+          "X-Amz-Date",
+          "Authorization",
+          "X-Api-Key",
+          "X-Amz-Security-Token",
+        ],
       },
     });
 
@@ -77,6 +101,34 @@ export class ImportServiceStack extends cdk.Stack {
         requestParameters: {
           "method.request.querystring.name": true,
         },
+        authorizer: importedAuthorizer, // Attach the Lambda authorizer
+        authorizationType: apigateway.AuthorizationType.CUSTOM,
+        methodResponses: [
+          {
+            statusCode: "200",
+            responseParameters: {
+              "method.response.header.Access-Control-Allow-Origin": true,
+            },
+          },
+          {
+            statusCode: "401",
+            responseParameters: {
+              "method.response.header.Access-Control-Allow-Origin": true,
+            },
+          },
+          {
+            statusCode: "403",
+            responseParameters: {
+              "method.response.header.Access-Control-Allow-Origin": true,
+            },
+          },
+          {
+            statusCode: "500",
+            responseParameters: {
+              "method.response.header.Access-Control-Allow-Origin": true,
+            },
+          },
+        ],
       }
     );
 

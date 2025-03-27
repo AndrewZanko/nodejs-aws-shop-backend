@@ -8,8 +8,10 @@ const s3Client = new S3Client({ region: "eu-west-1" });
 
 const headers = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "GET",
   "Access-Control-Allow-Credentials": true,
+  "Access-Control-Allow-Headers":
+    "Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token",
+  "Access-Control-Allow-Methods": "GET,OPTIONS",
 };
 
 export const handler = async (
